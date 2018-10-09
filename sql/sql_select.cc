@@ -26129,6 +26129,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_ENTER("mysql_explain_union");
   bool res= 0;
   SELECT_LEX *first= unit->first_select();
+  bool is_pushed_union= unit->derived && unit->derived->pushdown_derived;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
@@ -26146,9 +26147,12 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
     }
     if (!(res= unit->prepare(unit->derived, result,
                              SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
-      res= unit->exec();
+    {
+      if (!is_pushed_union)
+        res= unit->exec();
+    }
   }
-  else
+  else 
   {
     thd->lex->current_select= first;
     unit->set_limit(unit->global_parameters());
