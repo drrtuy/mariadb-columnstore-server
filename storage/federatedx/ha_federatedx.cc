@@ -3677,6 +3677,7 @@ err1:
   return error;
 }
 
+
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 {
@@ -3708,7 +3709,8 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 
 ha_federatedx_derived_handler::ha_federatedx_derived_handler(THD *thd,
                                                              TABLE_LIST *dt)
-  : derived_handler(thd, federatedx_hton)
+  : derived_handler(thd, federatedx_hton),
+    share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
 {
   derived= dt;
 }
@@ -3725,24 +3727,21 @@ int ha_federatedx_derived_handler::init_scan()
 
   TABLE *table= derived->get_first_table()->table;
   ha_federatedx *h= (ha_federatedx *) table->file;
-  io= h->io;
+  iop= &h->io;
   share= get_share(table->s->table_name.str, table);
   thd= table->in_use;
   txn= h->get_txn(thd);
-  if ((rc= txn->acquire(share, thd, TRUE, &io)))
+  if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);
   
   String derived_query(query_buff, sizeof(query_buff), thd->charset());
   derived_query.length(0);
   derived->derived->print(&derived_query, QT_ORDINARY);
   
-  //  if (stored_result)
-  //    (void) free_result();
-
-  if (io->query(derived_query.ptr(), derived_query.length()))
+  if ((*iop)->query(derived_query.ptr(), derived_query.length()))
     goto err;
 
-  stored_result= io->store_result();
+  stored_result= (*iop)->store_result();
   if (!stored_result)
       goto err;
 
@@ -3762,24 +3761,24 @@ int ha_federatedx_derived_handler::next_row()
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx_derived_handler::next_row");
 
-  if ((rc= txn->acquire(share, table->in_use, TRUE, &io)))
+  if ((rc= txn->acquire(share, table->in_use, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if (!(row= io->fetch_row(stored_result)))
+  if (!(row= (*iop)->fetch_row(stored_result)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   /* Convert row to internal format */
   table->in_use->variables.time_zone= UTC;
-  lengths= io->fetch_lengths(stored_result);
+  lengths= (*iop)->fetch_lengths(stored_result);
 
   for (field= table->field; *field; field++, column++)
   {
-    if (io->is_column_null(row, column))
+    if ((*iop)->is_column_null(row, column))
        (*field)->set_null();
     else
     {
       (*field)->set_notnull();
-      (*field)->store(io->get_column_data(row, column),
+      (*field)->store((*iop)->get_column_data(row, column),
                       lengths[column], &my_charset_bin);
     }
   }
@@ -3791,6 +3790,11 @@ int ha_federatedx_derived_handler::next_row()
 int ha_federatedx_derived_handler::end_scan()
 {
   DBUG_ENTER("ha_federatedx_derived_handler::end_scan");
+
+  (*iop)->free_result(stored_result);
+
+  free_share(txn, share);
+
   DBUG_RETURN(0);
 }
 
@@ -3822,7 +3826,8 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
 
 ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
                                                            SELECT_LEX *sel)
-  : select_handler(thd, federatedx_hton)
+  : select_handler(thd, federatedx_hton),
+    share(NULL), txn(NULL), iop(NULL), stored_result(NULL) 
 {
   select= sel;
 }
@@ -3844,16 +3849,16 @@ int ha_federatedx_select_handler::init_scan()
     break;
   }
   ha_federatedx *h= (ha_federatedx *) table->file;
-  io= h->io;
+  iop= &h->io;
   share= get_share(table->s->table_name.str, table);
   txn= h->get_txn(thd);
-  if ((rc= txn->acquire(share, thd, TRUE, &io)))
+  if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if (io->query(thd->query(), thd->query_length()))
+  if ((*iop)->query(thd->query(), thd->query_length()))
     goto err;
 
-  stored_result= io->store_result();
+  stored_result= (*iop)->store_result();
   if (!stored_result)
       goto err;
 
@@ -3865,7 +3870,7 @@ err:
 
 int ha_federatedx_select_handler::next_row()
 {
-  int rc;
+  int rc= 0;
   FEDERATEDX_IO_ROW *row;
   ulong *lengths;
   Field **field;
@@ -3873,24 +3878,24 @@ int ha_federatedx_select_handler::next_row()
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx_select_handler::next_row");
 
-  if ((rc= txn->acquire(share, table->in_use, TRUE, &io)))
+  if ((rc= txn->acquire(share, table->in_use, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if (!(row= io->fetch_row(stored_result)))
+  if (!(row= (*iop)->fetch_row(stored_result)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   /* Convert row to internal format */
   table->in_use->variables.time_zone= UTC;
-  lengths= io->fetch_lengths(stored_result);
+  lengths= (*iop)->fetch_lengths(stored_result);
 
   for (field= table->field; *field; field++, column++)
   {
-    if (io->is_column_null(row, column))
+    if ((*iop)->is_column_null(row, column))
        (*field)->set_null();
     else
     {
       (*field)->set_notnull();
-      (*field)->store(io->get_column_data(row, column),
+      (*field)->store((*iop)->get_column_data(row, column),
                       lengths[column], &my_charset_bin);
     }
   }
@@ -3906,8 +3911,9 @@ int ha_federatedx_select_handler::end_scan()
   free_tmp_table(thd, table);
   table= 0;
 
-  txn->release(&io);
-  DBUG_ASSERT(io == NULL);
+  (*iop)->free_result(stored_result);
+
+  free_share(txn, share);
 
   DBUG_RETURN(0);
 }

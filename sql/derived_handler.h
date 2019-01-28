@@ -6,6 +6,8 @@
 
 class TMP_TABLE_PARAM;
 
+typedef class st_select_lex_unit SELECT_LEX_UNIT;
+
 class derived_handler
 {
 public:
@@ -23,9 +25,9 @@ public:
 
   TMP_TABLE_PARAM *tmp_table_param;
 
-  struct st_select_lex_unit *unit;
+  SELECT_LEX_UNIT *unit;
 
-  struct st_select_lex *select;
+  SELECT_LEX *select;
 
   derived_handler(THD *thd_arg, handlerton *ht_arg)
     : thd(thd_arg), ht(ht_arg), derived(0),table(0), tmp_table_param(0),

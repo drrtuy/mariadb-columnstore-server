@@ -14,6 +14,12 @@ void derived_handler::set_derived(TABLE_LIST *tbl)
                    &select->join->tmp_table_param;
 }
 
+Pushdown_derived::Pushdown_derived(TABLE_LIST *tbl, derived_handler *h)
+ : derived(tbl), handler(h)
+{ 
+  is_analyze= handler->thd->lex->analyze_stmt;
+}
+
 Pushdown_derived::~Pushdown_derived()
 {
   delete handler;
@@ -31,6 +37,12 @@ int Pushdown_derived::execute()
   if ((err= handler->init_scan()))
     goto error;
 
+  if (is_analyze)
+  {
+    handler->end_scan();
+    DBUG_RETURN(0);
+  }
+  
   while (!(err= handler->next_row()))
   {
     if (unlikely(thd->check_killed()))

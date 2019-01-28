@@ -1443,7 +1443,8 @@ int JOIN::optimize()
   join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
-    res= select_lex->pushdown_select->init();
+    if (!(select_options & SELECT_DESCRIBE))
+      res= select_lex->pushdown_select->init();
     with_two_phase_optimization= false;
   }
   else if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
@@ -4137,13 +4138,6 @@ void JOIN::exec_inner()
     if (select_options & SELECT_DESCRIBE)
       select_describe(this, FALSE, FALSE, FALSE,
 		      (zero_result_cause?zero_result_cause:"No tables used"));
-
-    else if (select_lex->pushdown_select)
-    {
-      error= select_lex->pushdown_select->execute();
-      delete select_lex->pushdown_select; 
-      DBUG_VOID_RETURN;
-    }
     else
     {
       if (result->send_result_set_metadata(*columns_list,
@@ -4268,12 +4262,18 @@ void JOIN::exec_inner()
 		    order != 0 && !skip_sort_order,
 		    select_distinct,
                     !table_count ? "No tables used" : NullS);
+    if (select_lex->pushdown_select)
+    {
+      delete select_lex->pushdown_select;
+      select_lex->pushdown_select= NULL;
+    } 
     DBUG_VOID_RETURN;
   }
   else if (select_lex->pushdown_select)
   {
     error= select_lex->pushdown_select->execute();
-    delete select_lex->pushdown_select; 
+    delete select_lex->pushdown_select;
+    select_lex->pushdown_select= NULL;
     DBUG_VOID_RETURN;
   }
   else
@@ -4527,6 +4527,7 @@ mysql_select(THD *thd,
     }
   }
 
+#if 1
   select_lex->select_h= select_lex->find_select_handler(thd);
   if (select_lex->select_h)
   {
@@ -4535,6 +4536,7 @@ mysql_select(THD *thd,
                                           select_lex->select_h)))
       DBUG_RETURN(TRUE);
   }
+#endif
       
   if ((err= join->optimize()))
   {
@@ -26196,6 +26198,13 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
                       first->options | thd->variables.option_bits | SELECT_DESCRIBE,
                       result, unit, first);
   }
+
+  if (unit->derived && unit->derived->pushdown_derived)
+  {
+    delete unit->derived->pushdown_derived;
+    unit->derived->pushdown_derived= NULL;
+  }
+
   DBUG_RETURN(res || thd->is_error());
 }
 

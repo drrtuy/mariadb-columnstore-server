@@ -4602,7 +4602,10 @@ void st_select_lex::set_explain_type(bool on_the_fly)
 
   if (&master_unit()->thd->lex->select_lex == this)
   {
-     type= is_primary ? "PRIMARY" : "SIMPLE";
+    if (pushdown_select)
+      type= pushed_select_text;
+    else
+      type= is_primary ? "PRIMARY" : "SIMPLE";
   }
   else
   {

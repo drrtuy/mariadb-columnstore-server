@@ -35,6 +35,7 @@ const char *unit_operation_text[4]=
 };
 
 const char *pushed_derived_text= "PUSHED DERIVED";
+const char *pushed_select_text= "PUSHED SELECT";
 
 static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
@@ -751,7 +752,7 @@ int Explain_select::print_explain(Explain_query *query,
   THD *thd= output->thd;
   MEM_ROOT *mem_root= thd->mem_root;
 
-  if (select_type == pushed_derived_text)
+  if (select_type == pushed_derived_text || select_type == pushed_select_text)
   {
      print_explain_message_line(output, explain_flags, is_analyze,
                                 select_id /*select number*/,
@@ -882,7 +883,9 @@ void Explain_select::print_explain_json(Explain_query *query,
   
   bool started_cache= print_explain_json_cache(writer, is_analyze);
 
-  if (message || select_type == pushed_derived_text)
+  if (message ||
+      select_type == pushed_derived_text ||
+      select_type == pushed_select_text)
   {
     writer->add_member("query_block").start_object();
     writer->add_member("select_id").add_ll(select_id);
@@ -890,7 +893,10 @@ void Explain_select::print_explain_json(Explain_query *query,
 
     writer->add_member("table").start_object();
     writer->add_member("message").add_str(select_type == pushed_derived_text ?
-                                          "Pushed derived" : message);
+                                          "Pushed derived" :
+                                          select_type == pushed_select_text ?
+                                          "Pushed select" :
+                                          message);
     writer->end_object();
 
     print_explain_json_for_children(query, writer, is_analyze);

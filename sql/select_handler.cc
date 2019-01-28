@@ -3,6 +3,13 @@
 #include "sql_select.h"
 #include "select_handler.h"
 
+
+Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
+  : select(sel), handler(h)
+{ 
+  is_analyze= handler->thd->lex->analyze_stmt;
+}
+
 Pushdown_select::~Pushdown_select()
 {
   delete handler;
@@ -100,6 +107,12 @@ int Pushdown_select::execute()
   if ((err= handler->init_scan()))
     goto error;
 
+  if (is_analyze)
+  {
+    handler->end_scan();
+    DBUG_RETURN(0);
+  }
+  
   if (send_result_set_metadata())
     DBUG_RETURN(-1);
   

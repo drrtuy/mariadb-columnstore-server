@@ -2458,12 +2458,13 @@ class derived_handler;
 
 class Pushdown_derived: public Sql_alloc
 {
+private:
+  bool is_analyze;
 public:
   TABLE_LIST *derived;
   derived_handler *handler;
 
-  Pushdown_derived(TABLE_LIST *tbl, derived_handler *h)
-    : derived(tbl), handler(h) {}
+  Pushdown_derived(TABLE_LIST *tbl, derived_handler *h);
 
   ~Pushdown_derived();
 
@@ -2477,6 +2478,7 @@ class select_handler;
 class Pushdown_select: public Sql_alloc
 {
 private:
+  bool is_analyze;
   List<Item> result_columns;
   bool send_result_set_metadata();
   bool send_data();
@@ -2486,8 +2488,7 @@ public:
   SELECT_LEX *select;
   select_handler *handler;
 
-  Pushdown_select(SELECT_LEX *sel, select_handler *h)
-    : select(sel), handler(h) {}
+  Pushdown_select(SELECT_LEX *sel, select_handler *h);
 
   ~Pushdown_select();
 

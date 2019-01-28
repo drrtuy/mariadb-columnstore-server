@@ -12,7 +12,7 @@ class select_handler
 
   SELECT_LEX *select;
 
-   /*
+  /*
     Temporary table where all results should be stored in record[0]
     The table has a field for every item from the select_lex::item_list.
   */
@@ -29,20 +29,20 @@ class select_handler
   */
 
   /* Initialize the process of producing rows of result set */
-  virtual int init_scan()= 0;
+  virtual int init_scan() = 0;
 
   /*
     Put the next produced row of the result set in table->record[0] 
     and return 0. Return HA_ERR_END_OF_FILE if there are no more rows,
     return other error number in case of fatal error.
   */
-  virtual int next_row()= 0;
+  virtual int next_row() = 0;
 
   /* Finish scanning */
-  virtual int end_scan()=0;
+  virtual int end_scan() = 0;
   
   /* Report errors */
-  virtual void print_error(int error, myf errflag)=0;
+  virtual void print_error(int error, myf errflag) = 0;
 };
 
 #endif /* SELECT_HANDLER_INCLUDED */

@@ -468,12 +468,13 @@ extern federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
 extern federatedx_io *instantiate_io_null(MEM_ROOT *server_root,
                                           FEDERATEDX_SERVER *server);
 
+
 class ha_federatedx_derived_handler: public derived_handler
 {
 private:
   FEDERATEDX_SHARE *share;
   federatedx_txn *txn;
-  federatedx_io *io;
+  federatedx_io **iop;
   FEDERATEDX_IO_RESULT *stored_result;
 
 public:
@@ -491,7 +492,7 @@ class ha_federatedx_select_handler: public select_handler
 private:
   FEDERATEDX_SHARE *share;
   federatedx_txn *txn;
-  federatedx_io *io;
+  federatedx_io **iop;
   FEDERATEDX_IO_RESULT *stored_result;
 
 public:
