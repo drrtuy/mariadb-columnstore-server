@@ -917,7 +917,11 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     if (!(derived->pushdown_derived=
             new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
-     DBUG_RETURN(1);
+    {
+      delete derived->dt_handler;
+      derived->dt_handler= NULL; 
+      DBUG_RETURN(1);
+    }
   }    
   
   lex->current_select= first_select;

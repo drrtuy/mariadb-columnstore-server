@@ -42,8 +42,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <my_global.h>
 #include <thr_lock.h>
 #include "handler.h"
-#include "derived_handler.h"
-#include "select_handler.h"
 
 class federatedx_io;
 
@@ -468,40 +466,6 @@ extern federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
 extern federatedx_io *instantiate_io_null(MEM_ROOT *server_root,
                                           FEDERATEDX_SERVER *server);
 
-
-class ha_federatedx_derived_handler: public derived_handler
-{
-private:
-  FEDERATEDX_SHARE *share;
-  federatedx_txn *txn;
-  federatedx_io **iop;
-  FEDERATEDX_IO_RESULT *stored_result;
-
-public:
-  ha_federatedx_derived_handler(THD* thd_arg, TABLE_LIST *tbl);
-  ~ha_federatedx_derived_handler();
-  int init_scan();
-  int next_row();
-  int end_scan();
-  void print_error(int, unsigned long);
-};
-
-
-class ha_federatedx_select_handler: public select_handler
-{
-private:
-  FEDERATEDX_SHARE *share;
-  federatedx_txn *txn;
-  federatedx_io **iop;
-  FEDERATEDX_IO_RESULT *stored_result;
-
-public:
-  ha_federatedx_select_handler(THD* thd_arg, SELECT_LEX *sel);
-  ~ha_federatedx_select_handler();
-  int init_scan();
-  int next_row();
-  int end_scan();
-  void print_error(int, unsigned long);
-};
+#include "federatedx_pushdown.h"
 
 #endif /* HA_FEDERATEDX_INCLUDED */

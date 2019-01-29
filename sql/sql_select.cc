@@ -4262,18 +4262,11 @@ void JOIN::exec_inner()
 		    order != 0 && !skip_sort_order,
 		    select_distinct,
                     !table_count ? "No tables used" : NullS);
-    if (select_lex->pushdown_select)
-    {
-      delete select_lex->pushdown_select;
-      select_lex->pushdown_select= NULL;
-    } 
     DBUG_VOID_RETURN;
   }
   else if (select_lex->pushdown_select)
   {
     error= select_lex->pushdown_select->execute();
-    delete select_lex->pushdown_select;
-    select_lex->pushdown_select= NULL;
     DBUG_VOID_RETURN;
   }
   else
@@ -4527,16 +4520,18 @@ mysql_select(THD *thd,
     }
   }
 
-#if 1
   select_lex->select_h= select_lex->find_select_handler(thd);
   if (select_lex->select_h)
   {
     if (!(select_lex->pushdown_select=
       new (thd->mem_root) Pushdown_select(select_lex,
                                           select_lex->select_h)))
+    {
+      delete select_lex->select_h;
+      select_lex->select_h= NULL;
       DBUG_RETURN(TRUE);
+    }
   }
-#endif
       
   if ((err= join->optimize()))
   {
@@ -4559,8 +4554,15 @@ mysql_select(THD *thd,
     select_lex->where= join->conds_history;
     select_lex->having= join->having_history;
   }
-
+    
 err:
+
+  if (select_lex->pushdown_select)
+  {
+    delete select_lex->pushdown_select;
+    select_lex->pushdown_select= NULL;
+  }
+
   if (free_join)
   {
     THD_STAGE_INFO(thd, stage_end);

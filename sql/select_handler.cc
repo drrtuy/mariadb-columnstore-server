@@ -13,6 +13,7 @@ Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
 Pushdown_select::~Pushdown_select()
 {
   delete handler;
+  select->select_h= NULL;
 }
 
 bool Pushdown_select::init()
