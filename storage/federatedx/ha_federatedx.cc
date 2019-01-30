@@ -406,6 +406,8 @@ handlerton* federatedx_hton;
 
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
+static select_handler*
+create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
 
 /*
   Initialize the federatedx handler.
@@ -438,6 +440,7 @@ int federatedx_db_init(void *p)
   federatedx_hton->create= federatedx_create_handler;
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
+  federatedx_hton->create_select= create_federatedx_select_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
@@ -3794,6 +3797,125 @@ int ha_federatedx_derived_handler::end_scan()
 void ha_federatedx_derived_handler::print_error(int, unsigned long)
 {
 }
+
+
+static select_handler*
+create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
+{
+  ha_federatedx_select_handler* handler = NULL;
+  handlerton *ht= 0;
+
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (!tbl->table)
+      return 0;
+    if (!ht)
+      ht= tbl->table->file->partition_ht();
+    else if (ht != tbl->table->file->partition_ht())
+      return 0;
+  }
+
+  handler= new ha_federatedx_select_handler(thd, sel);
+
+  return handler;
+}
+
+ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
+                                                           SELECT_LEX *sel)
+  : select_handler(thd, federatedx_hton)
+{
+  select= sel;
+}
+
+ha_federatedx_select_handler::~ha_federatedx_select_handler() {}
+
+int ha_federatedx_select_handler::init_scan()
+{
+  int rc= 0;
+
+  DBUG_ENTER("ha_federatedx_select_handler::init_scan");
+
+  TABLE *table= 0;
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (!tbl->table)
+      continue;
+    table= tbl->table;
+    break;
+  }
+  ha_federatedx *h= (ha_federatedx *) table->file;
+  io= h->io;
+  share= get_share(table->s->table_name.str, table);
+  txn= h->get_txn(thd);
+  if ((rc= txn->acquire(share, thd, TRUE, &io)))
+    DBUG_RETURN(rc);
+
+  if (io->query(thd->query(), thd->query_length()))
+    goto err;
+
+  stored_result= io->store_result();
+  if (!stored_result)
+      goto err;
+
+  DBUG_RETURN(0);
+
+err:
+  DBUG_RETURN(HA_FEDERATEDX_ERROR_WITH_REMOTE_SYSTEM);
+}
+
+int ha_federatedx_select_handler::next_row()
+{
+  int rc;
+  FEDERATEDX_IO_ROW *row;
+  ulong *lengths;
+  Field **field;
+  int column= 0;
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
+  DBUG_ENTER("ha_federatedx_select_handler::next_row");
+
+  if ((rc= txn->acquire(share, table->in_use, TRUE, &io)))
+    DBUG_RETURN(rc);
+
+  if (!(row= io->fetch_row(stored_result)))
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+
+  /* Convert row to internal format */
+  table->in_use->variables.time_zone= UTC;
+  lengths= io->fetch_lengths(stored_result);
+
+  for (field= table->field; *field; field++, column++)
+  {
+    if (io->is_column_null(row, column))
+       (*field)->set_null();
+    else
+    {
+      (*field)->set_notnull();
+      (*field)->store(io->get_column_data(row, column),
+                      lengths[column], &my_charset_bin);
+    }
+  }
+  table->in_use->variables.time_zone= saved_time_zone;
+
+  DBUG_RETURN(rc);
+}
+
+int ha_federatedx_select_handler::end_scan()
+{
+  DBUG_ENTER("ha_federatedx_derived_handler::end_scan");
+
+  free_tmp_table(thd, table);
+  table= 0;
+
+  txn->release(&io);
+  DBUG_ASSERT(io == NULL);
+
+  DBUG_RETURN(0);
+}
+
+void ha_federatedx_select_handler::print_error(int, unsigned long)
+{
+}
+
 
 struct st_mysql_storage_engine federatedx_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

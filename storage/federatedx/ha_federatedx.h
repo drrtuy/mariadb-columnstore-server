@@ -43,6 +43,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <thr_lock.h>
 #include "handler.h"
 #include "derived_handler.h"
+#include "select_handler.h"
 
 class federatedx_io;
 
@@ -450,6 +451,7 @@ public:
   int free_result(void);
 
   friend class ha_federatedx_derived_handler;
+  friend class ha_federatedx_select_handler;
 };
 
 extern const char ident_quote_char;              // Character for quoting
@@ -477,6 +479,24 @@ private:
 public:
   ha_federatedx_derived_handler(THD* thd_arg, TABLE_LIST *tbl);
   ~ha_federatedx_derived_handler();
+  int init_scan();
+  int next_row();
+  int end_scan();
+  void print_error(int, unsigned long);
+};
+
+
+class ha_federatedx_select_handler: public select_handler
+{
+private:
+  FEDERATEDX_SHARE *share;
+  federatedx_txn *txn;
+  federatedx_io *io;
+  FEDERATEDX_IO_RESULT *stored_result;
+
+public:
+  ha_federatedx_select_handler(THD* thd_arg, SELECT_LEX *sel);
+  ~ha_federatedx_select_handler();
   int init_scan();
   int next_row();
   int end_scan();

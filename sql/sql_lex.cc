@@ -2336,6 +2336,7 @@ void st_select_lex::init_query()
   tvc= 0;
   in_tvc= false;
   versioned_tables= 0;
+  pushdown_select= 0;
 }
 
 void st_select_lex::init_select()
@@ -8257,3 +8258,4 @@ bool LEX::tvc_finalize_derived()
   current_select->linkage= DERIVED_TABLE_TYPE;
   return tvc_finalize();
 }
+    

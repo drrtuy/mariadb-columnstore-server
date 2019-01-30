@@ -2470,6 +2470,33 @@ public:
   int execute(); 
 };
 
+
+class select_handler;
+
+
+class Pushdown_select: public Sql_alloc
+{
+private:
+  List<Item> result_columns;
+  bool send_result_set_metadata();
+  bool send_data();
+  bool send_eof();
+
+public:
+  SELECT_LEX *select;
+  select_handler *handler;
+
+  Pushdown_select(SELECT_LEX *sel, select_handler *h)
+    : select(sel), handler(h) {}
+
+  ~Pushdown_select();
+
+  bool init();
+
+  int execute(); 
+};
+
+
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 int test_if_group_changed(List<Cached_item> &list);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
